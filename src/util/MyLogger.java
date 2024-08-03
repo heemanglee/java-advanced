@@ -5,7 +5,7 @@ import java.time.format.DateTimeFormatter;
 
 public abstract class MyLogger {
 
-    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("Hh:mm:ss.SSS");
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
 
     public static void log(Object object) {
         String time = LocalTime.now().format(formatter);
