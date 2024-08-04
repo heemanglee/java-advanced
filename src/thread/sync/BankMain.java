@@ -8,7 +8,10 @@ public class BankMain {
     public static void main(String[] args) throws InterruptedException {
 //        BankAccount bankAccount = new BankAccountV1(1000); // 계좌 초기 잔액은 1000원이다.
 //        BankAccount bankAccount = new BankAccountV2(1000); // 계좌 초기 잔액은 1000원이다.
-        BankAccount bankAccount = new BankAccountV3(1000); // 계좌 초기 잔액은 1000원이다.
+//        BankAccount bankAccount = new BankAccountV3(1000); // 계좌 초기 잔액은 1000원이다.
+//        BankAccount bankAccount = new BankAccountV4(1000); // ReentrantLock을 사용하여 lock 처리
+//        BankAccount bankAccount = new BankAccountV5(1000); // ReentrantLock을 사용하여 lock 처리
+        BankAccount bankAccount = new BankAccountV6(1000); // ReentrantLock을 사용하여 lock 처리
 
         Thread t1 = new Thread(new WithdrawTask(bankAccount, 800), "t1");
         Thread t2 = new Thread(new WithdrawTask(bankAccount, 800), "t2");
@@ -103,6 +106,58 @@ public class BankMain {
 
         // 여기서 중요한 점은 "임계 영역 범위를 최소화하여" 처리 성능을 높여야한다는 것이다.
 
+        // -------------------------------------------------------------------------------
+
+        // ReentrantLock을 사용하여 임계 영역을 설정한 BankAccountV4의 출력 결과
+        // "synchronized"으로 임계 영역을 사용하는 경우, lock을 획득하지 못한 스레드는 "BLOCKED" 상태가 되지만,
+        // "ReentrantLock"을 사용하는 경우 "WAITING" 상태가 된다.
+        /*
+         * 22:41:34.857 [       t1] 거래 시작: BankAccountV4
+         * 22:41:34.857 [       t2] 거래 시작: BankAccountV4
+         * 22:41:34.864 [       t1] [검증 시작] 출금액 : 800, 현재 잔액 : 1000
+         * 22:41:34.864 [       t1] [검증 완료] 출금액 : 800, 현재 잔액 : 1000
+         * 22:41:35.339 [     main] t1 state: TIMED_WAITING
+         * 22:41:35.339 [     main] t2 state: WAITING
+         * 22:41:35.869 [       t1] [출금 완료] 출금액 : 800, 현재 잔액 : 200
+         * 22:41:35.869 [       t1] 거래 종료
+         * 22:41:35.869 [       t2] [검증 시작] 출금액 : 800, 현재 잔액 : 200
+         * 22:41:35.869 [       t2] [검증 실패] 출금액 : 800, 현재 잔액 : 200
+         * 22:41:35.871 [     main] 최종 잔액: 200
+         */
+
+        // -------------------------------------------------------------------------------
+
+        // ReentrantLock을 사용하되, tryLock()을 사용하여 lock을 얻지 못한 스레드는 바로 종료하는 BankAccountV5의 출력 결과
+        // tryLock()을 사용하면 lock을 얻지 못한 스레드는 바로 종료되므로 "WAITING" 상태가 아닌 "TERMINATED" 상태가 된다.
+        /*
+         * 22:50:37.540 [       t1] 거래 시작: BankAccountV5
+         * 22:50:37.540 [       t2] 거래 시작: BankAccountV5
+         * 22:50:37.543 [       t2] [진입 실패] 이미 처리 중인 작업이 존재합니다.
+         * 22:50:37.547 [       t1] [검증 시작] 출금액 : 800, 현재 잔액 : 1000
+         * 22:50:37.548 [       t1] [검증 완료] 출금액 : 800, 현재 잔액 : 1000
+         * 22:50:38.024 [     main] t1 state: TIMED_WAITING
+         * 22:50:38.025 [     main] t2 state: TERMINATED
+         * 22:50:38.554 [       t1] [출금 완료] 출금액 : 800, 현재 잔액 : 200
+         * 22:50:38.556 [       t1] 거래 종료
+         * 22:50:38.563 [     main] 최종 잔액: 200
+         */
+
+        // -------------------------------------------------------------------------------
+
+        // ReentrantLock을 사용하되, tryLock()을 사용하여 lock을 얻지 못한 스레드는 특정 시간동안 기다린 후 종료하는 BankAccountV6의 출력 결과
+        // 아래는 lock을 획득하지 못한 스레드가 0.5초간 기다리면서 lock을 획득하기 위해 "TIMED_WAITING" 상태로 대기하다가 lock을 획득하지 못하여 종료됨을 알 수 있다.
+        /*
+         * 22:54:38.298 [       t1] 거래 시작: BankAccountV6
+         * 22:54:38.298 [       t2] 거래 시작: BankAccountV6
+         * 22:54:38.303 [       t1] [검증 시작] 출금액 : 800, 현재 잔액 : 1000
+         * 22:54:38.303 [       t1] [검증 완료] 출금액 : 800, 현재 잔액 : 1000
+         * 22:54:38.783 [     main] t1 state: TIMED_WAITING
+         * 22:54:38.784 [     main] t2 state: TIMED_WAITING
+         * 22:54:38.805 [       t2] [진입 실패] 0.5초 간 기다렸으나 lock을 획득하지 못하여 작업을 중단합니다.
+         * 22:54:39.304 [       t1] [출금 완료] 출금액 : 800, 현재 잔액 : 200
+         * 22:54:39.304 [       t1] 거래 종료
+         * 22:54:39.307 [     main] 최종 잔액: 200
+         */
     }
 
 }
