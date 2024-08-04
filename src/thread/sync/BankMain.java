@@ -6,10 +6,11 @@ import static util.ThreadUtils.sleep;
 public class BankMain {
 
     public static void main(String[] args) throws InterruptedException {
-        BankAccountV1 bankAccountV1 = new BankAccountV1(1000); // 계좌 초기 잔액은 1000원이다.
+//        BankAccount bankAccount = new BankAccountV1(1000); // 계좌 초기 잔액은 1000원이다.
+        BankAccount bankAccount = new BankAccountV2(1000); // 계좌 초기 잔액은 1000원이다.
 
-        Thread t1 = new Thread(new WithdrawTask(bankAccountV1, 800), "t1");
-        Thread t2 = new Thread(new WithdrawTask(bankAccountV1, 800), "t2");
+        Thread t1 = new Thread(new WithdrawTask(bankAccount, 800), "t1");
+        Thread t2 = new Thread(new WithdrawTask(bankAccount, 800), "t2");
         t1.start();
         t2.start();
 
@@ -19,8 +20,9 @@ public class BankMain {
 
         t1.join();
         t2.join();
-        log("최종 잔액: " + bankAccountV1.getBalance());
+        log("최종 잔액: " + bankAccount.getBalance());
 
+        // 임계 영역을 설정하지 않고 공유 변수에 여러 스레드가 동시에 접근하게 한 경우의 출력 결과
         /*
          * 13:37:46.704 [       t2] 거래 시작: BankAccountV1
          * 13:37:46.704 [       t1] 거래 시작: BankAccountV1
@@ -46,6 +48,34 @@ public class BankMain {
         // 분명 검증 로직에 "현재 잔액 < 출금할 잔액"이면 출금을 못하게 막았으나 정상적으로 출금 처리가 되었다.
         // 이러한 이유가 발생한 이유는 t1 스레드가 출금하기 이전에 t2 스레드가 계좌에 남은 잔액을 읽었기 때문이다.
         // t2 스레드가 계죄의 잔액을 읽었을 당시에는 "현재 잔액 > 출금할 잔액" 이였으므로 문제가 발상하지 않았다.
+
+        // -------------------------------------------------------------------------------
+
+        // 메서드에 임계 영역을 설정 후 출력 결과
+        /*
+         * 14:55:13.241 [       t1] 거래 시작: BankAccountV2
+         * 14:55:13.247 [       t1] [검증 시작] 출금액 : 800, 현재 잔액 : 1000
+         * 14:55:13.247 [       t1] [검증 완료] 출금액 : 800, 현재 잔액 : 1000
+         * 14:55:13.726 [     main] t1 state: TIMED_WAITING
+         * 14:55:13.727 [     main] t2 state: BLOCKED
+         * 14:55:14.253 [       t1] [출금 완료] 출금액 : 800, 현재 잔액 : 200
+         * 14:55:14.254 [       t1] 거래 종료
+         * 14:55:14.255 [       t2] 거래 시작: BankAccountV2
+         * 14:55:14.255 [       t2] [검증 시작] 출금액 : 800, 현재 잔액 : 200
+         * 14:55:14.256 [       t2] [검증 실패] 출금액 : 800, 현재 잔액 : 200
+         * 14:55:14.261 [     main] 최종 잔액: 200
+         */
+
+        // BankAccountV2에서는 공유 변수를 접근하는 "메서드"에 임계 영역을 설정하였다.
+        // 임계 영역이란 "공유 변수"에 "여러 스레드가 동시에" 접근하지 못하도록 보장한다.
+        // 자바에서는 "synchronized" 키워드를 사용하여 임계 영역을 설정할 수 있다.
+        // 임계 영역에 접근하기 위해서는 인스턴스가 가지고 있는 "lock"을 획득해야 하고, 사용을 완료한 스레드는 "lock"을 반환해야 한다.
+
+        // 위 출력 결과를 보면 withdraw() 메서드에 임계 영역을 설정하였기 때문에 t1, t2 스레드가 동시에 메서드에 접근하지 못한다.
+        // t1 스레드가 먼저 lock을 획득하여 임계 영역에 접근하였고, 이후에 t2 스레드가 임계 영역에 접근하고자 하였을 때 lock이 없기 때문에 "RUNNABLE -> BLOCKED" 상태가 된다.
+        // 이후에 t1 스레드의 작업이 모두 종료되고 lock을 반환하면 t2 스레드는 lock을 획득하여 작업을 시작한디. t2 스레드는 "BLOCKED -> RUNNABLE" 상태가 된다.
+        // t2 스레드가 작업을 시작 후, balance 변수를 읽으면 200이 저장되어 있기 때문에 검증에서 실패하게 된댜.
+
     }
 
 }
