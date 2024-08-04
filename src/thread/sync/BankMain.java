@@ -7,7 +7,8 @@ public class BankMain {
 
     public static void main(String[] args) throws InterruptedException {
 //        BankAccount bankAccount = new BankAccountV1(1000); // 계좌 초기 잔액은 1000원이다.
-        BankAccount bankAccount = new BankAccountV2(1000); // 계좌 초기 잔액은 1000원이다.
+//        BankAccount bankAccount = new BankAccountV2(1000); // 계좌 초기 잔액은 1000원이다.
+        BankAccount bankAccount = new BankAccountV3(1000); // 계좌 초기 잔액은 1000원이다.
 
         Thread t1 = new Thread(new WithdrawTask(bankAccount, 800), "t1");
         Thread t2 = new Thread(new WithdrawTask(bankAccount, 800), "t2");
@@ -75,6 +76,32 @@ public class BankMain {
         // t1 스레드가 먼저 lock을 획득하여 임계 영역에 접근하였고, 이후에 t2 스레드가 임계 영역에 접근하고자 하였을 때 lock이 없기 때문에 "RUNNABLE -> BLOCKED" 상태가 된다.
         // 이후에 t1 스레드의 작업이 모두 종료되고 lock을 반환하면 t2 스레드는 lock을 획득하여 작업을 시작한디. t2 스레드는 "BLOCKED -> RUNNABLE" 상태가 된다.
         // t2 스레드가 작업을 시작 후, balance 변수를 읽으면 200이 저장되어 있기 때문에 검증에서 실패하게 된댜.
+
+        // -------------------------------------------------------------------------------
+
+        // 공유 변수에 접근하는 코드 영역에만 임계 영역을 설정 후 출력 결과
+        /*
+         * 15:12:17.758 [       t2] 거래 시작: BankAccountV3
+         * 15:12:17.758 [       t1] 거래 시작: BankAccountV3
+         * 15:12:17.764 [       t2] [검증 시작] 출금액 : 800, 현재 잔액 : 1000
+         * 15:12:17.764 [       t2] [검증 완료] 출금액 : 800, 현재 잔액 : 1000
+         * 15:12:18.246 [     main] t1 state: BLOCKED
+         * 15:12:18.247 [     main] t2 state: TIMED_WAITING
+         * 15:12:18.770 [       t2] [출금 완료] 출금액 : 800, 현재 잔액 : 200
+         * 15:12:18.772 [       t2] 거래 종료
+         * 15:12:18.772 [       t1] [검증 시작] 출금액 : 800, 현재 잔액 : 200
+         * 15:12:18.773 [       t1] [검증 실패] 출금액 : 800, 현재 잔액 : 200
+         * 15:12:18.779 [     main] 최종 잔액: 200
+         */
+
+        // BankAccountV2의 경우 메서드에 임계 영역을 설정하였는데, 이는 메서드 내부의 모든 코드에 대해서 임계 영역을 설정하게 된다.
+        // 이는 여러 스레드가 동시에 접근해도 되는 코드에도 동시에 접근하지 못화도록 하는 것인데, 이는 성능상 매우 불리해진다.
+        // 따라서 BankAccountV3에서는 공유 변수를 접근하는 코드 영역에만 임계 영역을 설정하여, 여러 스레드가 동시에 접근해도 되는 영역에는 접근할 수 있도록 하였다.
+
+        // V2와 V3의 출력 결과를 보면, V2의 경우 t1 스레드가 작업을 모두 마쳐야 t2 스레드가 거래를 시작하였고,
+        // V3의 경우 t1, t2 스레드가 일단 동시에 거래를 시작하고, 공유 변수에 접근하는 영역에는 lock을 먼저 획득한 스레드가 작업을 먼저 시작할 수 있도록 하였다.
+
+        // 여기서 중요한 점은 "임계 영역 범위를 최소화하여" 처리 성능을 높여야한다는 것이다.
 
     }
 
